@@ -1,0 +1,124 @@
+{
+  "sensor": {
+    "enabled": true,
+    "pin": 17,
+    "pull_up": true,
+    "invert": false,
+    "bounce_time_ms": 20,
+    "trigger_edge": "break",
+    "trigger_delay_ms": 0,
+    "cooldown_ms": 1000,
+    "min_break_ms": 30,
+    "max_break_ms": 5000
+  },
+  "capture": {
+    "mode": "fast_grab",
+    "burst_count": 1,
+    "burst_interval_ms": 60,
+    "jpeg_quality": 92,
+    "cameras": [
+      0,
+      1
+    ],
+    "per_camera_delay_ms": {
+      "0": 0,
+      "1": 0
+    },
+    "sweep_delays_ms": [
+      0,
+      50,
+      100,
+      150,
+      200
+    ]
+  },
+  "storage": {
+    "session_tag": "run",
+    "min_free_mb": 500,
+    "item_length_mm": 0
+  },
+  "stream": {
+    "preview_size": [
+      1024,
+      768
+    ],
+    "record_size": [
+      2028,
+      1520
+    ],
+    "still_size": [
+      4056,
+      3040
+    ],
+    "framerate": 30,
+    "preview_fps": 20,
+    "preview_quality": 80
+  },
+  "cameras": {
+    "0": {
+      "auto_exposure": true,
+      "exposure_us": 10000,
+      "gain": 1.0,
+      "auto_wb": true,
+      "brightness": 0.0,
+      "contrast": 1.0,
+      "saturation": 1.0,
+      "sharpness": 1.0
+    },
+    "1": {
+      "auto_exposure": true,
+      "exposure_us": 10000,
+      "gain": 1.0,
+      "auto_wb": true,
+      "brightness": 0.0,
+      "contrast": 1.0,
+      "saturation": 1.0,
+      "sharpness": 1.0
+    }
+  },
+  "overlays": {
+    "grid": false,
+    "crosshair": true,
+    "focusbox": true,
+    "peaking": false,
+    "peak_threshold": 40
+  },
+  "integration": {
+    "webhook_url": ""
+  },
+  "ui": {
+    "advanced": false
+  },
+  "presets": {
+    "motion freeze": {
+      "cameras": {
+        "0": {
+          "auto_exposure": false,
+          "exposure_us": 2000,
+          "gain": 8.0
+        },
+        "1": {
+          "auto_exposure": false,
+          "exposure_us": 2000,
+          "gain": 8.0
+        }
+      }
+    },
+    "production lock": {
+      "cameras": {
+        "0": {
+          "auto_exposure": false,
+          "auto_wb": false,
+          "exposure_us": 3000,
+          "gain": 6.0
+        },
+        "1": {
+          "auto_exposure": false,
+          "auto_wb": false,
+          "exposure_us": 3000,
+          "gain": 6.0
+        }
+      }
+    }
+  }
+}

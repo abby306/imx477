@@ -1,0 +1,6 @@
+# runtime output -- never commit captures
+app/media/
+# local tuning -- keeps `git pull` from clobbering the client's setup
+app/config.json
+__pycache__/
+*.pyc

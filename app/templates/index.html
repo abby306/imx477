@@ -1,0 +1,755 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Camera System</title>
+<style>
+  :root{
+    --bg:#0a0b0d; --panel:#111317; --panel2:#15181d; --panel3:#1b1f26;
+    --line:#20252c; --line2:#2c333c;
+    --text:#d7dbe1; --muted:#79818d; --dim:#4b525b;
+    --go:#3fe08a; --amber:#f5a623; --stop:#ff3b30; --accent:#5aa9ff;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.5}
+  a{color:var(--accent);text-decoration:none}
+
+  /* advanced controls are hidden until the switch is on */
+  .adv{display:none}
+  body.showadv .adv{display:block}
+  body.showadv .adv.row{display:flex}
+  body.showadv .adv.ctrl{display:grid}
+
+  header{position:sticky;top:0;z-index:30;background:rgba(10,11,13,.96);
+    backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+  .bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 16px}
+  .brand{font-family:var(--mono);font-size:13px;font-weight:600;letter-spacing:.2em}
+  .brand .d{color:var(--go)}
+  .pill{font-size:12px;padding:4px 11px;border-radius:20px;border:1px solid var(--line2);
+    color:var(--muted);white-space:nowrap}
+  .pill.clear{color:var(--go);border-color:#1c6b41;background:#0e2419}
+  .pill.broken{color:#fff;border-color:var(--stop);background:var(--stop)}
+  .pill.on{color:#fff;border-color:var(--stop);background:var(--stop)}
+  .pill.jam{color:#111;border-color:var(--amber);background:var(--amber)}
+  .stat{font-size:12px;color:var(--muted);white-space:nowrap}
+  .stat b{color:var(--text)}
+  .spacer{flex:1}
+  .sw{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;user-select:none}
+
+  nav{display:flex;gap:2px;padding:0 12px;overflow-x:auto}
+  nav button{background:none;border:0;border-bottom:2px solid transparent;color:var(--muted);
+    font-size:14px;padding:10px 14px;cursor:pointer;white-space:nowrap}
+  nav button:hover{color:var(--text)}
+  nav button.on{color:var(--text);border-bottom-color:var(--go)}
+
+  main{padding:16px;max-width:1500px}
+  .tab{display:none} .tab.on{display:block}
+  .lead{color:var(--muted);font-size:14px;margin:0 0 14px}
+
+  .card{border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden;margin-bottom:14px}
+  .card h3{margin:0;padding:11px 14px;border-bottom:1px solid var(--line);background:var(--panel2);
+    font-size:14px;font-weight:600;color:var(--text)}
+  .card .body{padding:14px}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px;align-items:start}
+
+  .view{position:relative;background:#000;aspect-ratio:4/3}
+  .view img{width:100%;height:100%;object-fit:contain;display:block}
+
+  /* sharpness readout */
+  .sharp{padding:12px 14px;border-bottom:1px solid var(--line);background:var(--panel2)}
+  .sharp .top{display:flex;align-items:baseline;gap:10px}
+  .sharp .lab{font-size:13px;color:var(--muted)}
+  .sharp .val{font-size:26px;font-weight:600;color:var(--go);font-variant-numeric:tabular-nums;margin-left:auto}
+  .meter{position:relative;height:14px;border:1px solid var(--line);border-radius:3px;
+    background:#0c0e11;overflow:hidden;margin-top:7px}
+  .meter .fill{position:absolute;inset:0;width:0;background:linear-gradient(90deg,#1c6b41,var(--go));transition:width .12s linear}
+  .why{font-size:12px;color:var(--dim);margin-top:7px}
+  .why.warn{color:var(--amber)}
+
+  .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  button.btn{font-size:14px;background:var(--panel2);color:var(--text);border:1px solid var(--line2);
+    padding:9px 14px;border-radius:7px;cursor:pointer}
+  button.btn:hover{background:var(--panel3)}
+  button.btn:active{transform:translateY(1px)}
+  button.btn.pri{border-color:#2b5e8f;color:#cfe6ff}
+  button.btn.rec.on{background:var(--stop);color:#fff;border-color:var(--stop)}
+  button.btn.ghost{border-color:var(--line);color:var(--muted);font-size:13px;padding:7px 11px}
+  .huge{font-size:18px;font-weight:600;padding:16px 34px;border-radius:9px;
+    background:var(--go);color:#08130d;border:0;cursor:pointer}
+  .huge.on{background:var(--stop);color:#fff}
+  .huge:active{transform:translateY(1px)}
+
+  .toggle{display:flex;align-items:center;gap:9px;padding:9px 0;cursor:pointer;user-select:none}
+  .toggle input{width:17px;height:17px;accent-color:var(--go)}
+  .toggle .t{font-size:14px}
+  .toggle .s{font-size:12px;color:var(--dim)}
+
+  .ctrl{display:grid;grid-template-columns:1fr 76px;gap:4px 10px;margin:14px 0}
+  .ctrl .lab{font-size:14px}
+  .ctrl .num{font-size:14px;text-align:right;font-variant-numeric:tabular-nums;color:var(--go);font-weight:600}
+  .ctrl input[type=range]{grid-column:1/3;width:100%;accent-color:var(--accent);margin:2px 0}
+  .ctrl .s{grid-column:1/3;font-size:12px;color:var(--dim);margin-top:-2px}
+  .ctrl.off{opacity:.35;pointer-events:none}
+  .fld{display:flex;align-items:center;gap:9px;margin:11px 0;font-size:14px;flex-wrap:wrap}
+  select,input[type=text],input[type=number]{background:var(--panel2);border:1px solid var(--line2);
+    color:var(--text);font-size:14px;padding:8px 10px;border-radius:6px}
+  .advbox{border:1px dashed var(--line2);border-radius:8px;padding:4px 13px 10px;margin-top:14px;background:#0d0f13}
+  .advbox .h{font-size:12px;color:var(--amber);letter-spacing:.08em;text-transform:uppercase;margin:10px 0 2px}
+
+  .beacon{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;
+    height:150px;border-radius:9px;border:2px solid var(--line);background:#0c0e11;
+    font-size:30px;font-weight:700;letter-spacing:.08em}
+  .beacon.clear{color:var(--go);border-color:#1c6b41}
+  .beacon.broken{color:#fff;background:var(--stop);border-color:var(--stop)}
+  .beacon small{font-size:13px;font-weight:400;opacity:.85;letter-spacing:0}
+  .hw{font-size:14px;padding:10px 12px;border-radius:7px;margin-top:12px}
+  .hw.ok{background:#0e2419;color:var(--go);border:1px solid #1c6b41}
+  .hw.bad{background:#241a08;color:var(--amber);border:1px solid #6b4d1c}
+  .kv{display:grid;grid-template-columns:1fr auto;gap:6px 10px;font-size:13px;margin-top:12px}
+  .kv span:nth-child(even){color:var(--text);font-variant-numeric:tabular-nums}
+  .kv span:nth-child(odd){color:var(--muted)}
+  canvas{width:100%;height:80px;display:block;background:#0c0e11;border:1px solid var(--line);border-radius:6px}
+
+  .feed{display:flex;flex-direction:column;gap:8px;max-height:620px;overflow:auto}
+  .ev{display:flex;gap:9px;align-items:center;border:1px solid var(--line);border-radius:8px;
+    padding:7px;background:var(--panel2)}
+  .ev img{width:62px;height:47px;object-fit:cover;border-radius:4px;background:#000;cursor:pointer}
+  .ev .meta{font-size:13px;min-width:0}
+  .ev .meta .sub{font-size:12px;color:var(--muted)}
+  .ev.note{color:var(--amber);font-size:13px;padding:10px}
+  .sweep{border:1px solid var(--amber);border-radius:8px;padding:11px;background:#1a1508}
+  .sweep .strip{display:flex;gap:8px;overflow:auto;margin-top:9px}
+  .sweep .fr{text-align:center;cursor:pointer}
+  .sweep .fr img{width:96px;height:72px;object-fit:cover;border-radius:4px;border:2px solid var(--line2)}
+  .sweep .fr div{font-size:12px;color:var(--amber);margin-top:4px}
+  .sweep .fr:hover img{border-color:var(--amber)}
+
+  .lib{display:grid;gap:11px;grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+  .tile{border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--panel)}
+  .tile .th{aspect-ratio:4/3;background:#000;display:block}
+  .tile .th img,.tile .th video{width:100%;height:100%;object-fit:cover}
+  .tile .m{padding:8px 9px;font-size:12px;color:var(--muted)}
+  .tile .m .n{color:var(--text);word-break:break-all;font-size:12px}
+  .run{border:1px solid var(--line);border-radius:8px;padding:12px 14px;background:var(--panel2);
+    display:flex;align-items:center;gap:12px;margin-bottom:8px;cursor:pointer;font-size:14px}
+  .run:hover{border-color:var(--line2)}
+  .run.active{border-color:var(--go)}
+  .run .when{font-weight:600}
+  .run .cnt{color:var(--muted);font-size:13px}
+  .chip{font-size:13px;padding:7px 13px;border:1px solid var(--line2);border-radius:20px;
+    color:var(--muted);cursor:pointer;user-select:none}
+  .chip.on{color:#0a0b0d;background:var(--go);border-color:var(--go);font-weight:600}
+  .empty{color:var(--dim);font-size:14px;padding:22px 0;text-align:center}
+
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--panel3);
+    border:1px solid var(--line2);border-radius:8px;padding:11px 17px;font-size:14px;
+    opacity:0;transition:.2s;pointer-events:none;z-index:60}
+  .toast.show{opacity:1}
+  .toast.err{border-color:#7a2320;color:#ffb3ae}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;
+    justify-content:center;z-index:70;padding:20px}
+  .modal.on{display:flex}
+  .modal img{max-width:100%;max-height:90vh;object-fit:contain}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="bar">
+    <span class="brand">CAMERA<span class="d">·</span>SYSTEM</span>
+    <span class="pill" id="p-beam">Beam: —</span>
+    <span class="pill" id="p-cap">Not capturing</span>
+    <span class="pill jam" id="p-jam" style="display:none">Something is stuck in the beam</span>
+    <span class="stat"><b id="s-count">0</b> photos this run</span>
+    <span class="spacer"></span>
+    <span class="stat" id="s-cams"></span>
+    <span class="stat"><b id="s-disk">—</b> space left</span>
+    <label class="sw"><input type="checkbox" id="advsw"> Advanced</label>
+  </div>
+  <nav>
+    <button data-tab="cameras" class="on">Cameras</button>
+    <button data-tab="sensor">Beam sensor</button>
+    <button data-tab="capture">Capture</button>
+    <button data-tab="photos">Photos</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ============ CAMERAS ============ -->
+  <section class="tab on" id="tab-cameras">
+    <p class="lead">Check the cameras and focus the lenses. Nothing here uses the beam sensor.</p>
+    <div class="grid2" id="cam-panels"></div>
+  </section>
+
+  <!-- ============ SENSOR ============ -->
+  <section class="tab" id="tab-sensor">
+    <p class="lead">Check the beam sensor on its own. No photos are taken from this page.</p>
+    <div class="grid2">
+      <div class="card">
+        <h3>Is the beam blocked?</h3>
+        <div class="body">
+          <div class="beacon clear" id="beacon"><span id="beacon-main">—</span><small id="beacon-sub">waiting</small></div>
+          <div class="why">Put your hand between the two sensors. This should turn red straight away.
+            Take your hand away and it should go back to green.</div>
+          <div class="hw ok" id="hw">Checking…</div>
+          <div class="row" style="margin-top:12px">
+            <button class="btn" id="b-sim">Test the sensor</button>
+            <button class="btn ghost adv" id="b-rebuild">Reconnect sensor</button>
+          </div>
+          <div class="why">"Test the sensor" pretends an object went past, so you can check
+            everything works without touching the belt.</div>
+          <div class="kv">
+            <span>Times the beam was blocked</span><span id="k-breaks">0</span>
+            <span>Last block lasted</span><span id="k-lastbreak">—</span>
+            <span class="adv">Photos triggered</span><span class="adv" id="k-trigs">0</span>
+            <span class="adv">Skipped (too soon / too brief)</span><span class="adv" id="k-skip">0</span>
+            <span class="adv">GPIO pin</span><span class="adv" id="k-pin">—</span>
+            <span class="adv">Belt speed</span><span class="adv" id="k-belt">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card adv">
+        <h3>Signal timeline</h3>
+        <div class="body">
+          <canvas id="tl" width="800" height="80"></canvas>
+          <div class="why">Last 20 seconds. High means the beam is blocked. Ragged steps mean electrical
+            chatter — raise the debounce until they look clean.</div>
+          <div class="ctrl"><span class="lab">Debounce</span><span class="num" id="n-bounce">—</span>
+            <input type="range" id="c-bounce" min="0" max="200" step="1">
+            <span class="s">Ignores rapid flicker on the signal edge.</span></div>
+          <div class="ctrl"><span class="lab">Ignore blocks shorter than</span><span class="num" id="n-minbreak">—</span>
+            <input type="range" id="c-minbreak" min="0" max="500" step="5">
+            <span class="s">Rejects dust and insects. Raises the effective wait time if larger than it.</span></div>
+          <div class="ctrl"><span class="lab">Call it a jam after</span><span class="num" id="n-maxbreak">—</span>
+            <input type="range" id="c-maxbreak" min="200" max="20000" step="100">
+            <span class="s">If the beam stays blocked this long, stop taking photos and warn.</span></div>
+          <div class="fld"><span>GPIO pin</span><input type="number" id="c-pin" min="0" max="27" style="width:74px">
+            <label><input type="checkbox" id="c-pullup"> pull-up</label>
+            <label><input type="checkbox" id="c-invert"> invert</label></div>
+          <div class="why">Turn on "invert" if the light shows red when the beam is actually clear.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CAPTURE ============ -->
+  <section class="tab" id="tab-capture">
+    <p class="lead">Take a photo automatically every time an object breaks the beam.</p>
+
+    <div class="card">
+      <div class="body">
+        <div class="row">
+          <button class="huge" id="b-run">Start</button>
+          <div style="margin-left:6px">
+            <div style="font-size:14px" id="run-state">Not capturing.</div>
+            <div class="why" id="run-sub">Press Start, then send objects down the belt.</div>
+          </div>
+          <span class="spacer"></span>
+          <div class="fld"><span>Label</span>
+            <input type="text" id="c-tag" placeholder="e.g. bottles" style="width:150px"></div>
+        </div>
+        <div class="why">The label just helps you find these photos later. You can leave it as it is.</div>
+      </div>
+    </div>
+
+    <div class="grid2">
+      <div>
+        <div class="card">
+          <h3>Live view</h3>
+          <div class="body" style="display:grid;grid-template-columns:1fr 1fr;gap:9px" id="run-views"></div>
+        </div>
+
+        <div class="card">
+          <h3>Timing</h3>
+          <div class="body">
+            <div class="ctrl">
+              <span class="lab">Wait before taking the photo</span><span class="num" id="n-delay">—</span>
+              <input type="range" id="c-delay" min="0" max="2000" step="5">
+              <span class="s">The beam is broken by the front of the object. Waiting lets it move
+                into the middle of the picture before the photo is taken.</span>
+            </div>
+            <div class="why" id="h-eff"></div>
+
+            <div class="row" style="margin:12px 0 4px">
+              <button class="btn pri" id="b-sweep">Help me pick the wait time</button>
+            </div>
+            <div class="why">Press this, then send <b>one</b> object down the belt. You'll get the same
+              object photographed at several wait times — click whichever picture has it best centred.</div>
+
+            <div class="ctrl">
+              <span class="lab">Photos of each object</span><span class="num" id="n-burst">—</span>
+              <input type="range" id="c-burst" min="1" max="5" step="1">
+              <span class="s">More than one gives you a better chance of a clear picture.</span>
+            </div>
+
+            <div class="advbox adv">
+              <div class="h">Advanced</div>
+              <div class="ctrl adv"><span class="lab">Minimum gap between objects</span><span class="num" id="n-cool">—</span>
+                <input type="range" id="c-cool" min="0" max="5000" step="50">
+                <span class="s">Ignore the beam for this long after a photo, so one object can't make many.</span></div>
+              <div class="ctrl adv"><span class="lab">Gap between burst photos</span><span class="num" id="n-bgap">—</span>
+                <input type="range" id="c-bgap" min="10" max="500" step="5"><span class="s"></span></div>
+              <div class="ctrl adv"><span class="lab">Photo quality</span><span class="num" id="n-q">—</span>
+                <input type="range" id="c-q" min="40" max="100" step="1">
+                <span class="s">Higher looks better but uses more space.</span></div>
+              <div class="fld adv"><span>Take the photo when the beam</span>
+                <select id="c-edge"><option value="break">gets blocked</option>
+                  <option value="clear">becomes clear</option><option value="both">both</option></select></div>
+              <div class="fld adv"><span>Photo mode</span>
+                <select id="c-mode"><option value="fast_grab">fast (moving objects)</option>
+                  <option value="full_res">full resolution (still objects only)</option></select></div>
+              <div class="why adv" id="h-mode"></div>
+              <div class="fld adv"><span>Camera 0 extra wait</span><input type="number" id="c-off0" style="width:74px" step="10">
+                <span>Camera 1 extra wait</span><input type="number" id="c-off1" style="width:74px" step="10"><span>ms</span></div>
+              <div class="fld adv"><span>Object length</span><input type="number" id="c-item" style="width:84px">
+                <span>mm — lets the app work out belt speed</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Photos as they're taken</h3>
+        <div class="body"><div class="feed" id="feed">
+          <div class="empty">No photos yet.<br>Press Start, then send an object past the sensor.</div>
+        </div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PHOTOS ============ -->
+  <section class="tab" id="tab-photos">
+    <p class="lead">Everything the system has saved.</p>
+    <div class="row" style="margin-bottom:13px">
+      <span class="chip on" data-lib="sessions">From the belt</span>
+      <span class="chip" data-lib="photos">Photos you took</span>
+      <span class="chip" data-lib="videos">Videos</span>
+      <span class="spacer"></span>
+      <span class="stat" id="lib-usage"></span>
+      <button class="btn ghost" id="b-libref">Refresh</button>
+    </div>
+    <div id="lib-body"></div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+<div class="modal" id="modal"><img id="modal-img" alt=""></div>
+
+<script>
+const CAMERAS = {{ cameras|tojson }};
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
+let CFG=null, cursor=0, tab="cameras", capturing=false;
+
+async function getj(u){const r=await fetch(u);return r.json();}
+async function post(u,b){const r=await fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b||{})});return r.json();}
+let tt; function toast(m,e){const t=$("#toast");t.textContent=m;t.className="toast show"+(e?" err":"");clearTimeout(tt);tt=setTimeout(()=>t.className="toast",2600);}
+function fmt(s){return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0");}
+function patchFor(p,v){const k=p.split(".");const o={};let c=o;k.forEach((x,i)=>{if(i===k.length-1)c[x]=v;else c=c[x]={};});return o;}
+function debounce(f,ms){let t;return(...a)=>{clearTimeout(t);t=setTimeout(()=>f(...a),ms);};}
+const pushCfg=debounce(async p=>{const r=await post("/api/config",p);if(r.config)CFG=r.config;},150);
+function niceDate(iso){
+  if(!iso)return "";
+  const d=new Date(iso); if(isNaN(d))return iso;
+  return d.toLocaleDateString(undefined,{day:"numeric",month:"short"})+", "+
+         d.toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});
+}
+
+/* tabs */
+$$("nav button").forEach(b=>b.onclick=()=>{
+  tab=b.dataset.tab;
+  $$("nav button").forEach(x=>x.classList.toggle("on",x===b));
+  $$(".tab").forEach(s=>s.classList.toggle("on",s.id==="tab-"+tab));
+  if(tab==="photos")loadLib();
+});
+
+/* advanced switch */
+$("#advsw").addEventListener("change",e=>{
+  document.body.classList.toggle("showadv",e.target.checked);
+  pushCfg({ui:{advanced:e.target.checked}});
+});
+
+/* ---------- cameras ---------- */
+function camPanel(c){
+  const d=document.createElement("div");d.className="card";d.dataset.cam=c.index;
+  d.innerHTML=`
+    <h3>Camera ${c.index}</h3>
+    <div class="view"><img src="/stream/${c.index}" alt="camera ${c.index} live view"></div>
+    <div class="sharp">
+      <div class="top"><span class="lab">Sharpness</span><span class="val" data-score>0</span></div>
+      <div class="meter"><div class="fill" data-fill></div></div>
+      <div class="why">Point the camera at the belt, then turn the ring on the lens slowly.
+        Stop where this number is at its highest — that's focused.</div>
+      <div class="why warn" data-clip style="display:none"></div>
+    </div>
+    <div class="body">
+      <div class="row">
+        <button class="btn pri" data-photo>Take a photo</button>
+        <button class="btn" data-rec>Record video</button>
+        <span class="spacer"></span><span class="why" data-timer style="margin:0"></span>
+      </div>
+      <label class="toggle"><input type="checkbox" data-ov="peaking">
+        <span><span class="t">Highlight what's in focus</span><br>
+        <span class="s">Sharp edges glow orange. Easiest way to focus by eye.</span></span></label>
+      <label class="toggle"><input type="checkbox" data-guides>
+        <span><span class="t">Show centre guides</span><br>
+        <span class="s">Helps you aim the camera at the right spot.</span></span></label>
+
+      <div class="row" style="margin-top:10px">
+        <button class="btn" data-preset="motion freeze">Freeze motion</button>
+        <button class="btn" data-preset="production lock">Lock brightness</button>
+      </div>
+      <div class="why"><b>Freeze motion</b> — use when the belt is running, or objects come out blurry.<br>
+        <b>Lock brightness</b> — use before a real run, so every photo looks the same.</div>
+
+      <div class="advbox adv">
+        <div class="h">Advanced</div>
+        <div class="fld adv"><label><input type="checkbox" data-cc="auto_exposure"> auto exposure</label>
+          <label><input type="checkbox" data-cc="auto_wb"> auto white balance</label>
+          <label><input type="checkbox" data-ov="grid"> grid</label></div>
+        <div class="ctrl adv" data-man><span class="lab">Shutter</span><span class="num" data-n="exposure_us"></span>
+          <input type="range" data-cc="exposure_us" min="100" max="60000" step="100">
+          <span class="s">Microseconds. Shorter freezes movement but darkens the picture.</span></div>
+        <div class="ctrl adv" data-man><span class="lab">Gain</span><span class="num" data-n="gain"></span>
+          <input type="range" data-cc="gain" min="1" max="16" step="0.1">
+          <span class="s">Brightens a short shutter, at the cost of noise.</span></div>
+        <div class="ctrl adv"><span class="lab">Brightness</span><span class="num" data-n="brightness"></span>
+          <input type="range" data-cc="brightness" min="-1" max="1" step="0.05"><span class="s"></span></div>
+        <div class="ctrl adv"><span class="lab">Contrast</span><span class="num" data-n="contrast"></span>
+          <input type="range" data-cc="contrast" min="0" max="4" step="0.1"><span class="s"></span></div>
+        <div class="ctrl adv"><span class="lab">Saturation</span><span class="num" data-n="saturation"></span>
+          <input type="range" data-cc="saturation" min="0" max="4" step="0.1"><span class="s"></span></div>
+        <div class="ctrl adv"><span class="lab">Sharpening</span><span class="num" data-n="sharpness"></span>
+          <input type="range" data-cc="sharpness" min="0" max="8" step="0.1"><span class="s"></span></div>
+      </div>
+    </div>`;
+  wireCam(d,c.index);
+  return d;
+}
+
+function wireCam(el,i){
+  $("[data-photo]",el).onclick=async()=>{const r=await post(`/api/photo/${i}`,{full_res:true});
+    r.ok?toast("Photo saved. Find it under Photos."):toast(r.error||"Couldn't take the photo",true);};
+  const rb=$("[data-rec]",el);
+  rb.onclick=async()=>{
+    if(rb.classList.contains("on")){const r=await post(`/api/record/${i}/stop`);
+      rb.classList.remove("on");rb.textContent="Record video";
+      if(r.ok&&r.file)toast("Video saved · "+fmt(r.duration));}
+    else{const r=await post(`/api/record/${i}/start`);
+      if(r.ok){rb.classList.add("on");rb.textContent="Stop recording";}
+      else toast(r.error||"Couldn't start recording",true);}
+  };
+  $$("[data-ov]",el).forEach(c=>c.addEventListener("change",()=>
+    pushCfg({overlays:{[c.dataset.ov]:c.checked}})));
+  $("[data-guides]",el).addEventListener("change",e=>
+    pushCfg({overlays:{crosshair:e.target.checked,focusbox:e.target.checked}}));
+  $$("[data-cc]",el).forEach(inp=>{
+    const k=inp.dataset.cc;
+    inp.addEventListener(inp.type==="checkbox"?"change":"input",()=>{
+      let v=inp.type==="checkbox"?inp.checked:parseFloat(inp.value);
+      const n=$(`[data-n="${k}"]`,el);
+      if(n)n.textContent=k==="exposure_us"?Math.round(v):Number(v).toFixed(k==="brightness"?2:1);
+      if(k==="auto_exposure")manual(el,!inp.checked);
+      pushCfg({cameras:{[i]:{[k]:v}}});
+    });
+  });
+  $$("[data-preset]",el).forEach(b=>b.onclick=async()=>{
+    const r=await post("/api/config/preset/apply",{name:b.dataset.preset});
+    if(r.ok){CFG=r.config;$$(".card[data-cam]").forEach(x=>fillCam(x,parseInt(x.dataset.cam)));
+      toast(b.dataset.preset==="motion freeze"?"Motion freeze on — shutter shortened":"Brightness locked");}});
+}
+function manual(el,on){$$("[data-man]",el).forEach(c=>c.classList.toggle("off",!on));}
+
+function fillCam(el,i){
+  const c=CFG.cameras[i]; if(!c)return;
+  $$("[data-cc]",el).forEach(inp=>{
+    const k=inp.dataset.cc;
+    if(inp.type==="checkbox")inp.checked=!!c[k];
+    else{inp.value=c[k];const n=$(`[data-n="${k}"]`,el);
+      if(n)n.textContent=k==="exposure_us"?Math.round(c[k]):Number(c[k]).toFixed(k==="brightness"?2:1);}
+  });
+  manual(el,!c.auto_exposure);
+  $$("[data-ov]",el).forEach(ch=>ch.checked=!!CFG.overlays[ch.dataset.ov]);
+  $("[data-guides]",el).checked=!!(CFG.overlays.crosshair||CFG.overlays.focusbox);
+}
+
+/* ---------- config binding ---------- */
+function bindRange(id,nid,path,f){
+  const el=$(id),n=$(nid);
+  el.addEventListener("input",()=>{const v=parseFloat(el.value);n.textContent=f?f(v):v;
+    pushCfg(patchFor(path,v));
+    if(path.startsWith("sensor.")){if(CFG){const k=path.split(".")[1];CFG.sensor[k]=v;}updEff();}});
+}
+function bindVal(id,path,cast){
+  const el=$(id);
+  el.addEventListener("change",()=>pushCfg(patchFor(path,
+    el.type==="checkbox"?el.checked:(cast?cast(el.value):el.value))));
+}
+function updEff(){
+  if(!CFG)return;
+  const d=CFG.sensor.trigger_delay_ms,m=CFG.sensor.min_break_ms;
+  const eff=CFG.sensor.trigger_edge==="clear"?d:Math.max(d,m);
+  $("#h-eff").textContent = eff!==d
+    ? `The photo is actually taken ${eff} ms after the beam breaks, because short blocks are ignored for the first ${m} ms.`
+    : (d===0 ? "The photo is taken the moment the beam breaks."
+             : `The photo is taken ${d} ms after the beam breaks.`);
+}
+function modeHint(v){
+  return v==="full_res"
+    ? "Full resolution takes 1-2 seconds and freezes the live view — a moving object will already be gone. Only use it for objects that sit still."
+    : "Fast mode is the only one that catches a moving object.";
+}
+function fillCfg(){
+  const S=CFG.sensor,C=CFG.capture;
+  const set=(id,nid,v,f)=>{$(id).value=v;if(nid)$(nid).textContent=f?f(v):v;};
+  set("#c-bounce","#n-bounce",S.bounce_time_ms,v=>v+" ms");
+  set("#c-minbreak","#n-minbreak",S.min_break_ms,v=>v+" ms");
+  set("#c-maxbreak","#n-maxbreak",S.max_break_ms,v=>(v/1000)+" s");
+  set("#c-delay","#n-delay",S.trigger_delay_ms,v=>v+" ms");
+  set("#c-cool","#n-cool",S.cooldown_ms,v=>v+" ms");
+  set("#c-burst","#n-burst",C.burst_count);
+  set("#c-bgap","#n-bgap",C.burst_interval_ms,v=>v+" ms");
+  set("#c-q","#n-q",C.jpeg_quality,v=>v+"%");
+  $("#c-pin").value=S.pin;$("#c-pullup").checked=S.pull_up;$("#c-invert").checked=S.invert;
+  $("#c-edge").value=S.trigger_edge;$("#c-mode").value=C.mode;
+  $("#c-off0").value=C.per_camera_delay_ms["0"]||0;
+  $("#c-off1").value=C.per_camera_delay_ms["1"]||0;
+  $("#c-item").value=CFG.storage.item_length_mm||0;
+  $("#c-tag").value=CFG.storage.session_tag||"";
+  $("#h-mode").textContent=modeHint(C.mode);
+  $("#advsw").checked=!!(CFG.ui&&CFG.ui.advanced);
+  document.body.classList.toggle("showadv",$("#advsw").checked);
+  updEff();
+  $$(".card[data-cam]").forEach(el=>fillCam(el,parseInt(el.dataset.cam)));
+}
+
+/* ---------- state ---------- */
+async function poll(){
+  let s; try{s=await getj("/api/state");}catch(e){return;}
+  const sen=s.sensor;
+  const pb=$("#p-beam");
+  pb.className="pill "+(sen.broken?"broken":"clear");
+  pb.textContent=sen.broken?"Beam: BLOCKED":"Beam: clear";
+  capturing=s.capture.armed;
+  $("#p-cap").className="pill"+(capturing?" on":"");
+  $("#p-cap").textContent=capturing?"Capturing":"Not capturing";
+  $("#p-jam").style.display=sen.jam?"":"none";
+  $("#s-count").textContent=s.session?s.session.count:0;
+  $("#s-disk").textContent=s.disk_free_mb>=0?(s.disk_free_mb/1024).toFixed(1)+" GB":"—";
+  $("#s-cams").innerHTML=s.cameras.map(c=>
+    `Camera ${c.index} <b style="color:${c.error?"#ff3b30":"#3fe08a"}">●</b>`).join("&nbsp; ");
+
+  const rb=$("#b-run");
+  rb.classList.toggle("on",capturing);rb.textContent=capturing?"Stop":"Start";
+  $("#run-state").textContent=capturing?"Capturing.":"Not capturing.";
+  $("#run-sub").textContent=capturing
+    ? "Every object that breaks the beam is being photographed."
+    : "Press Start, then send objects down the belt.";
+
+  s.cameras.forEach(c=>{
+    const el=$(`.card[data-cam="${c.index}"]`); if(!el)return;
+    $("[data-score]",el).textContent=Math.round(c.focus_score);
+    $("[data-fill]",el).style.width=c.focus_pct+"%";
+    const cl=$("[data-clip]",el);
+    if(c.clipping_pct>2){cl.style.display="";cl.textContent=
+      `Too bright — ${c.clipping_pct}% of the picture is pure white. Turn the shutter down.`;}
+    else cl.style.display="none";
+    const t=$("[data-timer]",el);t.textContent=c.recording?"Recording "+fmt(c.record_seconds):"";
+    const b=$("[data-rec]",el);
+    if(c.recording&&!b.classList.contains("on")){b.classList.add("on");b.textContent="Stop recording";}
+    if(!c.recording&&b.classList.contains("on")){b.classList.remove("on");b.textContent="Record video";}
+  });
+
+  const bc=$("#beacon");
+  bc.className="beacon "+(sen.broken?"broken":"clear");
+  $("#beacon-main").textContent=sen.broken?"BLOCKED":"CLEAR";
+  $("#beacon-sub").textContent=sen.broken?"something is in the beam"
+    :(sen.last_break_ms?("last block lasted "+Math.round(sen.last_break_ms)+" ms"):"nothing in the beam");
+  const hw=$("#hw");
+  hw.className="hw "+(sen.available?"ok":"bad");
+  hw.textContent=sen.available?"Sensor is connected and working."
+    :"Sensor not detected. You can still use the cameras. ("+(sen.error||"no GPIO")+")";
+  $("#k-breaks").textContent=sen.break_count;
+  $("#k-lastbreak").textContent=sen.last_break_ms?Math.round(sen.last_break_ms)+" ms":"—";
+  $("#k-trigs").textContent=sen.trigger_count;
+  $("#k-skip").textContent=sen.skipped_count;
+  $("#k-pin").textContent=sen.pin;
+  $("#k-belt").textContent=s.belt_speed_mm_s?s.belt_speed_mm_s+" mm/s":"set object length";
+}
+
+/* ---------- events ---------- */
+async function pollEvents(){
+  let r; try{r=await getj("/api/events?since="+cursor);}catch(e){return;}
+  if(!r.events.length)return;
+  const f=$("#feed"); if($(".empty",f))f.innerHTML="";
+  r.events.forEach(e=>{cursor=Math.max(cursor,e.id);
+    f.insertBefore(e.type==="sweep"?sweepRow(e):(e.type==="note"?noteRow(e):evRow(e)),f.firstChild);});
+  while(f.children.length>120)f.removeChild(f.lastChild);
+}
+function noteRow(e){const d=document.createElement("div");d.className="ev note";d.textContent=e.note;return d;}
+function evRow(e){
+  const d=document.createElement("div");d.className="ev";
+  const imgs=(e.urls||[]).slice(0,3).map(u=>`<img src="${u}" loading="lazy" alt="" onclick="showImg('${u}')">`).join("");
+  const t=(e.time||"").split("T")[1]||"";
+  d.innerHTML=`${imgs}<div class="meta"><div>Object ${e.seq}</div>
+    <div class="sub">${t.slice(0,8)}${e.errors?" · problem taking photo":""}</div></div>`;
+  return d;
+}
+function sweepRow(e){
+  const d=document.createElement("div");d.className="sweep";
+  const byd={};(e.shots||[]).forEach(s=>{(byd[s.delay_ms]=byd[s.delay_ms]||[]).push(s);});
+  const frames=Object.keys(byd).sort((a,b)=>a-b).map(k=>
+    `<div class="fr" onclick="useDelay(${k})">
+       <img src="/media/${e.dir}/${byd[k][0].file}" loading="lazy" alt="">
+       <div>${k} ms</div></div>`).join("");
+  d.innerHTML=`<div style="font-size:14px;font-weight:600;color:var(--amber)">Click the picture where the object is best centred</div>
+    <div class="why" style="color:#c99a3a">That wait time will be saved and used from now on.</div>
+    <div class="strip">${frames}</div>`;
+  return d;
+}
+async function useDelay(ms){
+  await post("/api/config",{sensor:{trigger_delay_ms:parseInt(ms)}});
+  CFG=await getj("/api/config");fillCfg();
+  toast("Saved. Photos will now be taken "+ms+" ms after the beam breaks.");
+}
+function showImg(u){$("#modal-img").src=u;$("#modal").classList.add("on");}
+$("#modal").onclick=()=>$("#modal").classList.remove("on");
+
+/* ---------- timeline ---------- */
+async function drawTL(){
+  if(tab!=="sensor"||!document.body.classList.contains("showadv"))return;
+  let t; try{t=await getj("/api/timeline");}catch(e){return;}
+  const cv=$("#tl"),x=cv.getContext("2d"),W=cv.width,H=cv.height,WIN=20;
+  x.clearRect(0,0,W,H);
+  x.strokeStyle="#20252c";x.beginPath();
+  for(let i=0;i<=WIN;i+=5){const px=W-(i/WIN)*W;x.moveTo(px,0);x.lineTo(px,H);}
+  x.stroke();
+  const now=t.origin,lo=now-WIN,yHi=13,yLo=H-13;
+  const pts=t.edges.filter(e=>e.t>=lo-1);
+  x.strokeStyle="#3fe08a";x.lineWidth=2;x.beginPath();
+  let y=pts.length?(pts[0].broken?yLo:yHi):yLo;
+  x.moveTo(0,y);
+  pts.forEach(e=>{const px=W-((now-e.t)/WIN)*W;x.lineTo(px,y);y=e.broken?yHi:yLo;x.lineTo(px,y);});
+  x.lineTo(W,y);x.stroke();
+  x.fillStyle="#4b525b";x.font="10px sans-serif";
+  x.fillText("blocked",4,10);x.fillText("clear",4,H-3);
+}
+
+/* ---------- photos ---------- */
+let libKind="sessions";
+$$("[data-lib]").forEach(c=>c.onclick=()=>{libKind=c.dataset.lib;
+  $$("[data-lib]").forEach(x=>x.classList.toggle("on",x===c));loadLib();});
+$("#b-libref").onclick=()=>loadLib();
+
+async function loadLib(){
+  const b=$("#lib-body");b.innerHTML='<div class="empty">Loading…</div>';
+  const r=await getj("/api/library?kind="+libKind);
+  if(libKind==="sessions"){
+    $("#lib-usage").textContent=r.usage?`using ${(r.usage["sessions"]+r.usage["manual photos"]+r.usage["manual videos"]).toFixed(0)} MB`:"";
+    if(!r.items.length){b.innerHTML='<div class="empty">Nothing from the belt yet.<br>Go to Capture and press Start.</div>';return;}
+    b.innerHTML="";
+    r.items.forEach(s=>{
+      const d=document.createElement("div");d.className="run"+(s.active?" active":"");
+      d.innerHTML=`<span class="when">${niceDate(s.started)||s.id}</span>
+        <span class="cnt">${s.tag||""}</span>
+        <span class="cnt">${s.events} photo${s.events!==1?"s":""}</span>
+        ${s.active?'<span class="cnt" style="color:var(--go)">running now</span>':""}
+        <span class="spacer"></span><a href="/api/session/${s.id}/zip" onclick="event.stopPropagation()">download all</a>`;
+      d.onclick=()=>openRun(s.id,s.started);
+      b.appendChild(d);
+    });
+    return;
+  }
+  $("#lib-usage").textContent="";
+  if(!r.items.length){b.innerHTML='<div class="empty">Nothing here yet.</div>';return;}
+  b.innerHTML='<div class="lib"></div>';
+  const g=$(".lib",b);
+  r.items.forEach(it=>{
+    const d=document.createElement("div");d.className="tile";
+    const m=libKind==="videos"?`<video src="${it.url}" preload="metadata" muted></video>`
+                              :`<img src="${it.url}" loading="lazy" alt="">`;
+    d.innerHTML=`<a class="th" href="${it.url}" target="_blank">${m}</a>
+      <div class="m"><div class="n">${it.name}</div><div>${it.day} · ${it.size_mb} MB</div></div>`;
+    g.appendChild(d);
+  });
+}
+async function openRun(sid,started){
+  const b=$("#lib-body");b.innerHTML='<div class="empty">Loading…</div>';
+  const r=await getj("/api/library?kind=events&session="+encodeURIComponent(sid));
+  b.innerHTML=`<div class="row" style="margin-bottom:11px">
+      <button class="btn ghost" id="b-back">Back</button>
+      <span class="stat"><b>${niceDate(started)||sid}</b> · ${r.items.length} shown</span>
+      <span class="spacer"></span><a href="/api/session/${sid}/zip">download all</a></div>
+    <div class="lib" id="evgrid"></div>`;
+  $("#b-back").onclick=()=>loadLib();
+  const g=$("#evgrid");
+  if(!r.items.length){g.innerHTML='<div class="empty">No photos in this run.</div>';return;}
+  r.items.forEach(e=>{
+    const d=document.createElement("div");d.className="tile";
+    const f=e.shots[0];
+    d.innerHTML=`<a class="th" href="${f?f.url:"#"}" target="_blank">
+        ${f?`<img src="${f.url}" loading="lazy" alt="">`:""}</a>
+      <div class="m"><div class="n">Object ${e.meta.seq||""}</div>
+        <div>${e.shots.length} photo${e.shots.length!==1?"s":""}</div></div>`;
+    g.appendChild(d);
+  });
+}
+
+/* ---------- capture controls ---------- */
+$("#b-run").onclick=async()=>{
+  if(capturing){await post("/api/run/stop");toast("Stopped. Your photos are under Photos.");}
+  else{const r=await post("/api/run/start",{label:$("#c-tag").value});
+    toast(r.ok?"Started — send objects down the belt.":"Couldn't start",!r.ok);}
+  poll();
+};
+$("#b-sweep").onclick=async()=>{
+  const r=await post("/api/sweep/arm",{on:true});
+  toast(r.sweep_armed?"Ready — send ONE object past the sensor now.":"Cancelled");
+};
+$("#b-sim").onclick=async()=>{await post("/api/test/trigger",{duration_ms:150});
+  toast("Pretending an object went past — watch the light.");};
+$("#b-rebuild").onclick=async()=>{const r=await post("/api/config",{sensor:{enabled:true}});
+  const ok=r.sensor&&r.sensor.available;
+  toast(ok?"Sensor connected.":"Still not detected: "+((r.sensor||{}).error||"?"),!ok);};
+
+/* ---------- init ---------- */
+(async function init(){
+  const root=$("#cam-panels");
+  CAMERAS.forEach(c=>root.appendChild(camPanel(c)));
+  $("#run-views").innerHTML=CAMERAS.map(c=>
+    `<div class="view" style="border:1px solid var(--line);border-radius:7px;overflow:hidden">
+       <img src="/stream/${c.index}" alt="camera ${c.index} live view"></div>`).join("");
+
+  CFG=await getj("/api/config");
+  fillCfg();
+
+  bindRange("#c-bounce","#n-bounce","sensor.bounce_time_ms",v=>v+" ms");
+  bindRange("#c-minbreak","#n-minbreak","sensor.min_break_ms",v=>v+" ms");
+  bindRange("#c-maxbreak","#n-maxbreak","sensor.max_break_ms",v=>(v/1000)+" s");
+  bindRange("#c-delay","#n-delay","sensor.trigger_delay_ms",v=>v+" ms");
+  bindRange("#c-cool","#n-cool","sensor.cooldown_ms",v=>v+" ms");
+  bindRange("#c-burst","#n-burst","capture.burst_count");
+  bindRange("#c-bgap","#n-bgap","capture.burst_interval_ms",v=>v+" ms");
+  bindRange("#c-q","#n-q","capture.jpeg_quality",v=>v+"%");
+  bindVal("#c-pin","sensor.pin",v=>parseInt(v));
+  bindVal("#c-pullup","sensor.pull_up");
+  bindVal("#c-invert","sensor.invert");
+  bindVal("#c-item","storage.item_length_mm",v=>parseInt(v)||0);
+  $("#c-edge").addEventListener("change",e=>{pushCfg({sensor:{trigger_edge:e.target.value}});
+    CFG.sensor.trigger_edge=e.target.value;updEff();});
+  $("#c-mode").addEventListener("change",e=>{pushCfg({capture:{mode:e.target.value}});
+    CFG.capture.mode=e.target.value;$("#h-mode").textContent=modeHint(e.target.value);});
+  ["0","1"].forEach(i=>{const el=$("#c-off"+i);if(!el)return;
+    el.addEventListener("change",()=>pushCfg({capture:{per_camera_delay_ms:{[i]:parseInt(el.value)||0}}}));});
+
+  poll();setInterval(poll,500);
+  pollEvents();setInterval(pollEvents,500);
+  setInterval(drawTL,300);
+})();
+</script>
+</body>
+</html>

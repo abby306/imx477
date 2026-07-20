@@ -1,0 +1,8 @@
+# On Raspberry Pi OS install these from apt, NOT pip -- they ship prebuilt:
+#   sudo apt install -y python3-picamera2 python3-opencv python3-flask
+#
+# This file is only for reference / non-Pi environments.
+Flask>=3.0
+numpy>=1.24
+opencv-python-headless>=4.8
+gpiozero>=2.0
