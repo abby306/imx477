@@ -278,9 +278,12 @@ def api_sweep_arm():
     on = bool(body.get("on", True))
     if "delays_ms" in body:
         cfg.update({"capture": {"sweep_delays_ms": body["delays_ms"]}})
+    # Snapshot the run state (via arm_sweep) BEFORE arming, so the sweep knows
+    # whether to leave capture running or switch it back off when it finishes.
+    sweep_on = controller.arm_sweep(on)
     if on and not controller.armed:
         controller.set_armed(True)
-    return jsonify({"ok": True, "sweep_armed": controller.arm_sweep(on)})
+    return jsonify({"ok": True, "sweep_armed": sweep_on})
 
 
 # --------------------------------------------------------------------------- #

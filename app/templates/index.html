@@ -108,6 +108,9 @@
   .hw{font-size:14px;padding:10px 12px;border-radius:7px;margin-top:12px}
   .hw.ok{background:#0e2419;color:var(--go);border:1px solid #1c6b41}
   .hw.bad{background:#241a08;color:var(--amber);border:1px solid #6b4d1c}
+  .stopbanner{display:none;background:#2a0f0d;color:#ffb3ae;border-bottom:1px solid #7a2320;
+    padding:9px 16px;font-size:13px}
+  .stopbanner.show{display:block}
   .kv{display:grid;grid-template-columns:1fr auto;gap:6px 10px;font-size:13px;margin-top:12px}
   .kv span:nth-child(even){color:var(--text);font-variant-numeric:tabular-nums}
   .kv span:nth-child(odd){color:var(--muted)}
@@ -176,6 +179,7 @@
     <button data-tab="capture">Capture</button>
     <button data-tab="photos">Photos</button>
   </nav>
+  <div class="stopbanner" id="stopbanner"></div>
 </header>
 
 <main>
@@ -267,19 +271,26 @@
         <div class="card">
           <h3>Timing</h3>
           <div class="body">
-            <div class="ctrl">
-              <span class="lab">Wait before taking the photo</span><span class="num" id="n-delay">—</span>
-              <input type="range" id="c-delay" min="0" max="2000" step="5">
-              <span class="s">The beam is broken by the front of the object. Waiting lets it move
-                into the middle of the picture before the photo is taken.</span>
-            </div>
+            <div class="why" style="margin-top:0">Each camera has its own wait. The beam breaks at the
+              front of the object; a camera waits this long so the object reaches the middle of
+              <b>its own</b> view before it shoots. A camera further down the belt from the sensor needs a
+              longer wait.</div>
+            <div id="cam-delays"></div>
             <div class="why" id="h-eff"></div>
 
             <div class="row" style="margin:12px 0 4px">
               <button class="btn pri" id="b-sweep">Help me pick the wait time</button>
             </div>
             <div class="why">Press this, then send <b>one</b> object down the belt. You'll get the same
-              object photographed at several wait times — click whichever picture has it best centred.</div>
+              object photographed at several wait times — click the picture where it's best centred, and
+              that time is set as the starting wait for <b>every</b> camera. Then fine-tune each camera above.</div>
+
+            <div class="ctrl">
+              <span class="lab">Wait before photographing the next object</span><span class="num" id="n-cool">—</span>
+              <input type="range" id="c-cool" min="0" max="5000" step="50">
+              <span class="s">After a photo, the beam is ignored for this long, so the same object can't be
+                photographed twice. Raise it if you're getting duplicate shots of one item.</span>
+            </div>
 
             <div class="ctrl">
               <span class="lab">Photos of each object</span><span class="num" id="n-burst">—</span>
@@ -289,14 +300,16 @@
 
             <div class="advbox adv">
               <div class="h">Advanced</div>
-              <div class="ctrl adv"><span class="lab">Minimum gap between objects</span><span class="num" id="n-cool">—</span>
-                <input type="range" id="c-cool" min="0" max="5000" step="50">
-                <span class="s">Ignore the beam for this long after a photo, so one object can't make many.</span></div>
               <div class="ctrl adv"><span class="lab">Gap between burst photos</span><span class="num" id="n-bgap">—</span>
-                <input type="range" id="c-bgap" min="10" max="500" step="5"><span class="s"></span></div>
+                <input type="range" id="c-bgap" min="10" max="500" step="5">
+                <span class="s">When taking more than one photo per object, this is the pause between them.</span></div>
               <div class="ctrl adv"><span class="lab">Photo quality</span><span class="num" id="n-q">—</span>
                 <input type="range" id="c-q" min="40" max="100" step="1">
                 <span class="s">Higher looks better but uses more space.</span></div>
+              <div class="ctrl adv"><span class="lab">Stop capturing when free space drops below</span><span class="num" id="n-free">—</span>
+                <input type="range" id="c-free" min="0" max="5000" step="100">
+                <span class="s">A safety floor: capturing stops on its own before the card fills up mid-run.
+                  If your runs stop by themselves, either free up space or lower this.</span></div>
               <div class="fld adv"><span>Take the photo when the beam</span>
                 <select id="c-edge"><option value="break">gets blocked</option>
                   <option value="clear">becomes clear</option><option value="both">both</option></select></div>
@@ -304,8 +317,6 @@
                 <select id="c-mode"><option value="fast_grab">fast (moving objects)</option>
                   <option value="full_res">full resolution (still objects only)</option></select></div>
               <div class="why adv" id="h-mode"></div>
-              <div class="fld adv"><span>Camera 0 extra wait</span><input type="number" id="c-off0" style="width:74px" step="10">
-                <span>Camera 1 extra wait</span><input type="number" id="c-off1" style="width:74px" step="10"><span>ms</span></div>
               <div class="fld adv"><span>Object length</span><input type="number" id="c-item" style="width:84px">
                 <span>mm — lets the app work out belt speed</span></div>
             </div>
@@ -491,12 +502,24 @@ function bindVal(id,path,cast){
 }
 function updEff(){
   if(!CFG)return;
-  const d=CFG.sensor.trigger_delay_ms,m=CFG.sensor.min_break_ms;
-  const eff=CFG.sensor.trigger_edge==="clear"?d:Math.max(d,m);
-  $("#h-eff").textContent = eff!==d
-    ? `The photo is actually taken ${eff} ms after the beam breaks, because short blocks are ignored for the first ${m} ms.`
-    : (d===0 ? "The photo is taken the moment the beam breaks."
-             : `The photo is taken ${d} ms after the beam breaks.`);
+  const m=CFG.sensor.min_break_ms||0;
+  const pcd=CFG.capture.per_camera_delay_ms||{};
+  const parts=CAMERAS.map(c=>{
+    const v=pcd[String(c.index)]||0;
+    return `Camera ${c.index} shoots ~${v+m} ms after the beam breaks`;
+  });
+  $("#h-eff").textContent = parts.join("; ") +
+    (m>0 ? ` (includes a ${m} ms check that a real object is present).` : ".");
+}
+function fillCamDelays(){
+  const pcd=CFG.capture.per_camera_delay_ms||{};
+  CAMERAS.forEach(c=>{
+    const el=$(`#c-camdelay-${c.index}`), n=$(`#n-camdelay-${c.index}`);
+    if(!el)return;
+    const v=pcd[String(c.index)]||0;
+    el.value=v; if(n)n.textContent=v+" ms";
+  });
+  updEff();
 }
 function modeHint(v){
   return v==="full_res"
@@ -509,21 +532,19 @@ function fillCfg(){
   set("#c-bounce","#n-bounce",S.bounce_time_ms,v=>v+" ms");
   set("#c-minbreak","#n-minbreak",S.min_break_ms,v=>v+" ms");
   set("#c-maxbreak","#n-maxbreak",S.max_break_ms,v=>(v/1000)+" s");
-  set("#c-delay","#n-delay",S.trigger_delay_ms,v=>v+" ms");
   set("#c-cool","#n-cool",S.cooldown_ms,v=>v+" ms");
   set("#c-burst","#n-burst",C.burst_count);
   set("#c-bgap","#n-bgap",C.burst_interval_ms,v=>v+" ms");
   set("#c-q","#n-q",C.jpeg_quality,v=>v+"%");
+  set("#c-free","#n-free",CFG.storage.min_free_mb,v=>v+" MB");
   $("#c-pin").value=S.pin;$("#c-pullup").checked=S.pull_up;$("#c-invert").checked=S.invert;
   $("#c-edge").value=S.trigger_edge;$("#c-mode").value=C.mode;
-  $("#c-off0").value=C.per_camera_delay_ms["0"]||0;
-  $("#c-off1").value=C.per_camera_delay_ms["1"]||0;
   $("#c-item").value=CFG.storage.item_length_mm||0;
   $("#c-tag").value=CFG.storage.session_tag||"";
   $("#h-mode").textContent=modeHint(C.mode);
   $("#advsw").checked=!!(CFG.ui&&CFG.ui.advanced);
   document.body.classList.toggle("showadv",$("#advsw").checked);
-  updEff();
+  fillCamDelays();
   $$(".card[data-cam]").forEach(el=>fillCam(el,parseInt(el.dataset.cam)));
 }
 
@@ -538,6 +559,9 @@ async function poll(){
   $("#p-cap").className="pill"+(capturing?" on":"");
   $("#p-cap").textContent=capturing?"Capturing":"Not capturing";
   $("#p-jam").style.display=sen.jam?"":"none";
+  const sb=$("#stopbanner"),reason=s.capture.disarm_reason;
+  if(reason&&!capturing){sb.textContent=reason;sb.classList.add("show");}
+  else sb.classList.remove("show");
   $("#s-count").textContent=s.session?s.session.count:0;
   $("#s-disk").textContent=s.disk_free_mb>=0?(s.disk_free_mb/1024).toFixed(1)+" GB":"—";
   $("#s-cams").innerHTML=s.cameras.map(c=>
@@ -612,9 +636,10 @@ function sweepRow(e){
   return d;
 }
 async function useDelay(ms){
-  await post("/api/config",{sensor:{trigger_delay_ms:parseInt(ms)}});
+  const p={};CAMERAS.forEach(c=>p[String(c.index)]=parseInt(ms));
+  await post("/api/config",{sensor:{trigger_delay_ms:0},capture:{per_camera_delay_ms:p}});
   CFG=await getj("/api/config");fillCfg();
-  toast("Saved. Photos will now be taken "+ms+" ms after the beam breaks.");
+  toast("Saved "+ms+" ms as the starting wait for every camera — fine-tune each above if needed.");
 }
 function showImg(u){$("#modal-img").src=u;$("#modal").classList.add("on");}
 $("#modal").onclick=()=>$("#modal").classList.remove("on");
@@ -725,16 +750,47 @@ $("#b-rebuild").onclick=async()=>{const r=await post("/api/config",{sensor:{enab
        <img src="/stream/${c.index}" alt="camera ${c.index} live view"></div>`).join("");
 
   CFG=await getj("/api/config");
+
+  // One-time migration: older setups kept a single shared "trigger_delay_ms".
+  // Fold it into every camera's own wait, so all delay now lives per-camera.
+  if((CFG.sensor.trigger_delay_ms||0)>0){
+    const base=CFG.sensor.trigger_delay_ms,p={};
+    CAMERAS.forEach(c=>{p[String(c.index)]=(CFG.capture.per_camera_delay_ms[String(c.index)]||0)+base;});
+    await post("/api/config",{sensor:{trigger_delay_ms:0},capture:{per_camera_delay_ms:p}});
+    CFG=await getj("/api/config");
+  }
+
+  // One delay slider per camera, built from however many cameras are attached.
+  const cd=$("#cam-delays");
+  CAMERAS.forEach(c=>{
+    const w=document.createElement("div");w.className="ctrl";
+    w.innerHTML=`<span class="lab">Wait before Camera ${c.index} takes the photo</span>
+      <span class="num" id="n-camdelay-${c.index}">—</span>
+      <input type="range" id="c-camdelay-${c.index}" min="0" max="8000" step="10">
+      <span class="s">Time from the beam breaking until Camera ${c.index} shoots. Give it more if this
+        camera sits further down the belt from the sensor.</span>`;
+    cd.appendChild(w);
+  });
+  CAMERAS.forEach(c=>{
+    const el=$(`#c-camdelay-${c.index}`),n=$(`#n-camdelay-${c.index}`);
+    el.addEventListener("input",()=>{
+      const v=parseInt(el.value)||0;n.textContent=v+" ms";
+      pushCfg({capture:{per_camera_delay_ms:{[c.index]:v}}});
+      if(CFG)CFG.capture.per_camera_delay_ms[String(c.index)]=v;
+      updEff();
+    });
+  });
+
   fillCfg();
 
   bindRange("#c-bounce","#n-bounce","sensor.bounce_time_ms",v=>v+" ms");
   bindRange("#c-minbreak","#n-minbreak","sensor.min_break_ms",v=>v+" ms");
   bindRange("#c-maxbreak","#n-maxbreak","sensor.max_break_ms",v=>(v/1000)+" s");
-  bindRange("#c-delay","#n-delay","sensor.trigger_delay_ms",v=>v+" ms");
   bindRange("#c-cool","#n-cool","sensor.cooldown_ms",v=>v+" ms");
   bindRange("#c-burst","#n-burst","capture.burst_count");
   bindRange("#c-bgap","#n-bgap","capture.burst_interval_ms",v=>v+" ms");
   bindRange("#c-q","#n-q","capture.jpeg_quality",v=>v+"%");
+  bindRange("#c-free","#n-free","storage.min_free_mb",v=>v+" MB");
   bindVal("#c-pin","sensor.pin",v=>parseInt(v));
   bindVal("#c-pullup","sensor.pull_up");
   bindVal("#c-invert","sensor.invert");
@@ -743,8 +799,6 @@ $("#b-rebuild").onclick=async()=>{const r=await post("/api/config",{sensor:{enab
     CFG.sensor.trigger_edge=e.target.value;updEff();});
   $("#c-mode").addEventListener("change",e=>{pushCfg({capture:{mode:e.target.value}});
     CFG.capture.mode=e.target.value;$("#h-mode").textContent=modeHint(e.target.value);});
-  ["0","1"].forEach(i=>{const el=$("#c-off"+i);if(!el)return;
-    el.addEventListener("change",()=>pushCfg({capture:{per_camera_delay_ms:{[i]:parseInt(el.value)||0}}}));});
 
   poll();setInterval(poll,500);
   pollEvents();setInterval(pollEvents,500);

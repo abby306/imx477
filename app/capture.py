@@ -252,6 +252,9 @@ class CaptureController:
         self.next_id = 1
         self.sweep_armed = False
         self.last_error = None
+        self.disarm_reason = None      # why capture auto-stopped, for the UI banner
+        self._armed_before_sweep = False
+        self._session_before_sweep = False
         self._awaiting_duration = []   # events captured mid-break, pending duration
 
     # ---- arming ------------------------------------------------------------
@@ -261,10 +264,17 @@ class CaptureController:
                 self.storage.start_session(self.cfg.get("storage.session_tag"),
                                            self.cfg.get())
             self.armed = bool(armed)
+            if self.armed:
+                self.disarm_reason = None   # a fresh run clears any old stop banner
             return self.armed
 
     def arm_sweep(self, on=True):
         with self.lock:
+            if on and not self.sweep_armed:
+                # Remember what to restore to: a sweep is a calibration one-shot
+                # and must never leave a run capturing on its own.
+                self._armed_before_sweep = self.armed
+                self._session_before_sweep = bool(self.storage.session)
             self.sweep_armed = bool(on)
             return self.sweep_armed
 
@@ -276,12 +286,21 @@ class CaptureController:
         floor = self.cfg.get("storage.min_free_mb")
         if free >= 0 and free < floor:
             self.set_armed(False)
+            self.disarm_reason = ("Capturing stopped automatically — only %d MB of "
+                                  "space left (the safety floor is %d MB). Free up "
+                                  "space, then press Start again." % (free, floor))
             self._log_note("disarmed: disk below %d MB" % floor)
             return
         try:
             if self.sweep_armed:
                 self._do_sweep(kind, t0, break_ms)
                 self.arm_sweep(False)
+                # Calibration finished: put the run state back exactly as we
+                # found it, so the sweep can never silently keep capturing.
+                if not self._armed_before_sweep:
+                    self.set_armed(False)
+                    if not self._session_before_sweep:
+                        self.storage.stop_session()
             else:
                 self._do_event(kind, t0, break_ms)
         except Exception as e:
@@ -453,4 +472,5 @@ class CaptureController:
     def state(self):
         with self.lock:
             return {"armed": self.armed, "sweep_armed": self.sweep_armed,
-                    "cursor": self.next_id - 1, "last_error": self.last_error}
+                    "cursor": self.next_id - 1, "last_error": self.last_error,
+                    "disarm_reason": self.disarm_reason}

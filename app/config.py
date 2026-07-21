@@ -108,7 +108,7 @@ DEFAULTS = {
 CLAMPS = {
     "sensor.pin": (0, 27),
     "sensor.bounce_time_ms": (0, 500),
-    "sensor.trigger_delay_ms": (0, 5000),
+    "sensor.trigger_delay_ms": (0, 10000),
     "sensor.cooldown_ms": (0, 60000),
     "sensor.min_break_ms": (0, 2000),
     "sensor.max_break_ms": (100, 120000),
@@ -210,6 +210,16 @@ class Config:
                 _set_path(self.data, dotted, _get_path(DEFAULTS, dotted))
         cams = self.data.get("capture", {}).get("cameras", [])
         self.data["capture"]["cameras"] = [int(c) for c in cams if str(c).isdigit() or isinstance(c, int)]
+        # Per-camera delays are a free-form dict (one key per camera), so they
+        # can't live in CLAMPS. Clamp each here so a stray value can't wedge the
+        # capture thread with a multi-second sleep.
+        pcd = self.data.get("capture", {}).get("per_camera_delay_ms", {})
+        if isinstance(pcd, dict):
+            for k, v in list(pcd.items()):
+                if isinstance(v, bool) or not isinstance(v, (int, float)):
+                    pcd[k] = 0
+                else:
+                    pcd[k] = int(max(0, min(10000, v)))
 
     # ---- access ------------------------------------------------------------
     def get(self, dotted=None):
