@@ -136,12 +136,6 @@
   .tile .th img,.tile .th video{width:100%;height:100%;object-fit:cover}
   .tile .m{padding:8px 9px;font-size:12px;color:var(--muted)}
   .tile .m .n{color:var(--text);word-break:break-all;font-size:12px}
-  .run{border:1px solid var(--line);border-radius:8px;padding:12px 14px;background:var(--panel2);
-    display:flex;align-items:center;gap:12px;margin-bottom:8px;cursor:pointer;font-size:14px}
-  .run:hover{border-color:var(--line2)}
-  .run.active{border-color:var(--go)}
-  .run .when{font-weight:600}
-  .run .cnt{color:var(--muted);font-size:13px}
   .chip{font-size:13px;padding:7px 13px;border:1px solid var(--line2);border-radius:20px;
     color:var(--muted);cursor:pointer;user-select:none}
   .chip.on{color:#0a0b0d;background:var(--go);border-color:var(--go);font-weight:600}
@@ -152,10 +146,54 @@
     opacity:0;transition:.2s;pointer-events:none;z-index:60}
   .toast.show{opacity:1}
   .toast.err{border-color:#7a2320;color:#ffb3ae}
-  .modal{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;align-items:center;
-    justify-content:center;z-index:70;padding:20px}
+  /* live feed thumbnails, labelled by camera */
+  .ev .shots{display:flex;gap:6px;flex:0 0 auto}
+  .ev .shot{position:relative}
+  .ev .shot img{width:66px;height:50px;object-fit:cover;border-radius:4px;background:#000;cursor:pointer;display:block}
+  .camtag{position:absolute;left:3px;bottom:3px;font-size:10px;line-height:1;padding:2px 4px;
+    border-radius:3px;background:rgba(0,0,0,.72);color:#cfe6ff;font-family:var(--mono)}
+  .ev .shot .more{position:absolute;right:3px;top:3px;font-size:10px;padding:1px 4px;border-radius:3px;
+    background:rgba(0,0,0,.72);color:#fff}
+  .ev .meta .ttl{font-weight:600}
+
+  /* photos: run cards */
+  .runs{display:grid;gap:11px;grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+  .runcard{border:1px solid var(--line);border-radius:10px;background:var(--panel);
+    overflow:hidden;display:flex;flex-direction:column}
+  .runcard.active{border-color:var(--go)}
+  .runcard .rc-body{padding:13px 14px;flex:1}
+  .runcard .rc-title{font-size:15px;font-weight:600;word-break:break-word}
+  .runcard .rc-when{font-size:13px;color:var(--muted);margin-top:2px}
+  .runcard .rc-meta{font-size:12px;color:var(--dim);margin-top:9px}
+  .runcard .rc-actions{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--line);background:var(--panel2)}
+  .runcard .rc-actions .btn{flex:1;text-align:center}
+
+  /* photos: per-object gallery */
+  .gallery{display:flex;flex-direction:column;gap:16px}
+  .obj{border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow:hidden}
+  .obj-head{padding:9px 13px;border-bottom:1px solid var(--line);background:var(--panel2);
+    font-size:13px;font-weight:600;color:var(--text);display:flex;gap:10px;align-items:center}
+  .obj-head .cnt{color:var(--dim);font-weight:400}
+  .obj-shots{display:grid;gap:11px;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));padding:12px}
+  .obj figure{margin:0}
+  .obj figure img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px;background:#000;
+    cursor:pointer;display:block;border:1px solid var(--line)}
+  .obj figure img:hover{border-color:var(--accent)}
+  .obj figcaption{font-size:12px;color:var(--muted);margin-top:6px;font-family:var(--mono)}
+
+  /* lightbox */
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.92);display:none;align-items:center;
+    justify-content:center;z-index:70;padding:16px;gap:8px}
   .modal.on{display:flex}
-  .modal img{max-width:100%;max-height:90vh;object-fit:contain}
+  .lb-fig{margin:0;display:flex;flex-direction:column;gap:10px;max-width:94vw;max-height:92vh;align-items:center}
+  .modal img{max-width:100%;max-height:82vh;object-fit:contain;border-radius:6px}
+  .lb-bar{display:flex;align-items:center;gap:12px;width:100%;color:var(--text);font-size:13px}
+  .lb-bar .lb-cap{font-family:var(--mono)}
+  .lb-bar .lb-pos{font-family:var(--mono);color:var(--muted)}
+  .lb-nav{background:rgba(255,255,255,.08);color:#fff;border:0;font-size:30px;line-height:1;
+    width:48px;height:66px;border-radius:8px;cursor:pointer;flex:0 0 auto}
+  .lb-nav:hover{background:rgba(255,255,255,.18)}
+  @media(max-width:640px){.lb-nav{width:36px;height:52px;font-size:23px}}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -349,12 +387,25 @@
 </main>
 
 <div class="toast" id="toast"></div>
-<div class="modal" id="modal"><img id="modal-img" alt=""></div>
+<div class="modal" id="modal">
+  <button class="lb-nav" id="lb-prev" aria-label="Previous">&#8249;</button>
+  <figure class="lb-fig">
+    <img id="modal-img" alt="">
+    <figcaption class="lb-bar">
+      <span class="lb-cap" id="lb-cap"></span>
+      <span class="spacer"></span>
+      <span class="lb-pos" id="lb-pos"></span>
+      <a class="btn ghost" id="lb-dl" download>Download</a>
+      <button class="btn ghost" id="lb-close">Close</button>
+    </figcaption>
+  </figure>
+  <button class="lb-nav" id="lb-next" aria-label="Next">&#8250;</button>
+</div>
 
 <script>
 const CAMERAS = {{ cameras|tojson }};
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
-let CFG=null, cursor=0, tab="cameras", capturing=false;
+let CFG=null, cursor=0, tab="cameras", capturing=false, prevCapturing=null;
 
 async function getj(u){const r=await fetch(u);return r.json();}
 async function post(u,b){const r=await fetch(u,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b||{})});return r.json();}
@@ -556,6 +607,17 @@ async function poll(){
   pb.className="pill "+(sen.broken?"broken":"clear");
   pb.textContent=sen.broken?"Beam: BLOCKED":"Beam: clear";
   capturing=s.capture.armed;
+  // Feed is per-run: start fresh when a run begins, clear it when it ends.
+  const feed=$("#feed");
+  if(prevCapturing===null){
+    cursor=s.capture.cursor||0;          // first load: don't replay old runs
+  }else if(capturing!==prevCapturing){
+    cursor=s.capture.cursor||cursor;     // only show events from this point on
+    feed.innerHTML=capturing
+      ? '<div class="empty">Capturing — send objects down the belt.<br>Photos appear here as they’re taken.</div>'
+      : '<div class="empty">Run saved.<br>View these photos on the <b>Photos</b> page.</div>';
+  }
+  prevCapturing=capturing;
   $("#p-cap").className="pill"+(capturing?" on":"");
   $("#p-cap").textContent=capturing?"Capturing":"Not capturing";
   $("#p-jam").style.display=sen.jam?"":"none";
@@ -609,6 +671,9 @@ async function poll(){
 async function pollEvents(){
   let r; try{r=await getj("/api/events?since="+cursor);}catch(e){return;}
   if(!r.events.length)return;
+  // The feed is live: while a run isn't capturing, just keep the cursor moving
+  // so stray events don't pile back up — the saved photos live under Photos.
+  if(!capturing){cursor=Math.max(cursor,r.cursor||cursor);return;}
   const f=$("#feed"); if($(".empty",f))f.innerHTML="";
   r.events.forEach(e=>{cursor=Math.max(cursor,e.id);
     f.insertBefore(e.type==="sweep"?sweepRow(e):(e.type==="note"?noteRow(e):evRow(e)),f.firstChild);});
@@ -617,10 +682,24 @@ async function pollEvents(){
 function noteRow(e){const d=document.createElement("div");d.className="ev note";d.textContent=e.note;return d;}
 function evRow(e){
   const d=document.createElement("div");d.className="ev";
-  const imgs=(e.urls||[]).slice(0,3).map(u=>`<img src="${u}" loading="lazy" alt="" onclick="showImg('${u}')">`).join("");
+  const urls=e.urls||[];
+  // Show one thumbnail per camera (with a "+N" badge if that camera burst),
+  // so both cameras are always visible instead of Cam 0 crowding the row.
+  const byCam={};
+  urls.forEach(u=>{const c=camOf(u.split("/").pop());(byCam[c]=byCam[c]||[]).push(u);});
+  const seq=String(e.seq||"").padStart(3,"0");
+  const thumbs=Object.keys(byCam).sort().map(c=>{
+    const g=byCam[c], more=g.length>1?`<span class="more">+${g.length-1}</span>`:"";
+    return `<div class="shot"><img src="${g[0]}" loading="lazy" alt="" data-u="${g[0]}">
+      <span class="camtag">Cam ${c}</span>${more}</div>`;
+  }).join("");
   const t=(e.time||"").split("T")[1]||"";
-  d.innerHTML=`${imgs}<div class="meta"><div>Object ${e.seq}</div>
-    <div class="sub">${t.slice(0,8)}${e.errors?" · problem taking photo":""}</div></div>`;
+  d.innerHTML=`<div class="shots">${thumbs}</div><div class="meta">
+    <div class="ttl">Object ${seq}</div>
+    <div class="sub">${t.slice(0,8)}${e.errors?' · <span style="color:var(--stop)">photo error</span>':""}</div></div>`;
+  const items=urls.map(u=>({url:u,caption:`Object ${seq} · ${shotLabel(u.split("/").pop())}`}));
+  d.querySelectorAll("img[data-u]").forEach(img=>img.onclick=()=>
+    openLightbox(items,urls.indexOf(img.dataset.u)));
   return d;
 }
 function sweepRow(e){
@@ -641,8 +720,44 @@ async function useDelay(ms){
   CFG=await getj("/api/config");fillCfg();
   toast("Saved "+ms+" ms as the starting wait for every camera — fine-tune each above if needed.");
 }
-function showImg(u){$("#modal-img").src=u;$("#modal").classList.add("on");}
-$("#modal").onclick=()=>$("#modal").classList.remove("on");
+/* ---------- camera-label helpers ---------- */
+function camOf(name){const m=/cam(\d+)/.exec(name||"");return m?parseInt(m[1]):null;}
+function shotNo(name){const m=/_(\d+)\.[a-z]+$/i.exec(name||"");return m?parseInt(m[1]):null;}
+function shotLabel(name){
+  const c=camOf(name), s=shotNo(name);
+  return "Camera "+(c==null?"?":c)+(s!=null?" · shot "+s:"");
+}
+
+/* ---------- lightbox (click any photo to view large, arrow through the set) ---------- */
+let LB={items:[],i:0};
+function openLightbox(items,i){
+  if(!items||!items.length)return;
+  LB.items=items; LB.i=Math.max(0,Math.min(i||0,items.length-1));
+  renderLB(); $("#modal").classList.add("on");
+}
+function renderLB(){
+  const it=LB.items[LB.i]; if(!it)return;
+  $("#modal-img").src=it.url;
+  $("#lb-cap").textContent=it.caption||"";
+  $("#lb-pos").textContent=(LB.i+1)+" / "+LB.items.length;
+  $("#lb-dl").href=it.url;
+  const many=LB.items.length>1;
+  $("#lb-prev").style.visibility=many?"":"hidden";
+  $("#lb-next").style.visibility=many?"":"hidden";
+}
+function lbStep(d){if(LB.items.length)LB.i=(LB.i+d+LB.items.length)%LB.items.length,renderLB();}
+function closeLB(){$("#modal").classList.remove("on");}
+function showImg(u){openLightbox([{url:u}],0);}   /* single-image fallback */
+$("#modal").onclick=e=>{if(e.target.id==="modal")closeLB();};
+$("#lb-close").onclick=closeLB;
+$("#lb-prev").onclick=()=>lbStep(-1);
+$("#lb-next").onclick=()=>lbStep(1);
+document.addEventListener("keydown",e=>{
+  if(!$("#modal").classList.contains("on"))return;
+  if(e.key==="Escape")closeLB();
+  else if(e.key==="ArrowLeft")lbStep(-1);
+  else if(e.key==="ArrowRight")lbStep(1);
+});
 
 /* ---------- timeline ---------- */
 async function drawTL(){
@@ -676,16 +791,21 @@ async function loadLib(){
   if(libKind==="sessions"){
     $("#lib-usage").textContent=r.usage?`using ${(r.usage["sessions"]+r.usage["manual photos"]+r.usage["manual videos"]).toFixed(0)} MB`:"";
     if(!r.items.length){b.innerHTML='<div class="empty">Nothing from the belt yet.<br>Go to Capture and press Start.</div>';return;}
-    b.innerHTML="";
+    b.innerHTML='<div class="runs"></div>';const g=$(".runs",b);
     r.items.forEach(s=>{
-      const d=document.createElement("div");d.className="run"+(s.active?" active":"");
-      d.innerHTML=`<span class="when">${niceDate(s.started)||s.id}</span>
-        <span class="cnt">${s.tag||""}</span>
-        <span class="cnt">${s.events} photo${s.events!==1?"s":""}</span>
-        ${s.active?'<span class="cnt" style="color:var(--go)">running now</span>':""}
-        <span class="spacer"></span><a href="/api/session/${s.id}/zip" onclick="event.stopPropagation()">download all</a>`;
-      d.onclick=()=>openRun(s.id,s.started);
-      b.appendChild(d);
+      const d=document.createElement("div");d.className="runcard"+(s.active?" active":"");
+      d.innerHTML=`
+        <div class="rc-body">
+          <div class="rc-title">${s.tag||"Run"}</div>
+          <div class="rc-when">${niceDate(s.started)||s.id}</div>
+          <div class="rc-meta">${s.events} object${s.events!==1?"s":""}${s.active?' · <span style="color:var(--go)">running now</span>':""}</div>
+        </div>
+        <div class="rc-actions">
+          <button class="btn ghost" data-open>View photos</button>
+          <a class="btn ghost" href="/api/session/${s.id}/zip">Download all</a>
+        </div>`;
+      d.querySelector("[data-open]").onclick=()=>openRun(s.id,s.started,s.tag);
+      g.appendChild(d);
     });
     return;
   }
@@ -693,35 +813,57 @@ async function loadLib(){
   if(!r.items.length){b.innerHTML='<div class="empty">Nothing here yet.</div>';return;}
   b.innerHTML='<div class="lib"></div>';
   const g=$(".lib",b);
-  r.items.forEach(it=>{
+  const photoItems=libKind==="photos"
+    ? r.items.map(it=>({url:it.url,caption:`${it.day} · ${shotLabel(it.name)}`})) : null;
+  r.items.forEach((it,idx)=>{
     const d=document.createElement("div");d.className="tile";
-    const m=libKind==="videos"?`<video src="${it.url}" preload="metadata" muted></video>`
-                              :`<img src="${it.url}" loading="lazy" alt="">`;
-    d.innerHTML=`<a class="th" href="${it.url}" target="_blank">${m}</a>
-      <div class="m"><div class="n">${it.name}</div><div>${it.day} · ${it.size_mb} MB</div></div>`;
+    if(libKind==="videos"){
+      d.innerHTML=`<a class="th" href="${it.url}" target="_blank"><video src="${it.url}" preload="metadata" muted></video></a>
+        <div class="m"><div class="n">${it.name}</div><div>${it.day} · ${it.size_mb} MB</div></div>`;
+    }else{
+      d.innerHTML=`<div class="th"><img src="${it.url}" loading="lazy" alt="" style="cursor:pointer"></div>
+        <div class="m"><div class="n">${it.name}</div><div>${it.day} · ${it.size_mb} MB</div></div>`;
+      d.querySelector("img").onclick=()=>openLightbox(photoItems,idx);
+    }
     g.appendChild(d);
   });
 }
-async function openRun(sid,started){
+async function openRun(sid,started,tag){
   const b=$("#lib-body");b.innerHTML='<div class="empty">Loading…</div>';
   const r=await getj("/api/library?kind=events&session="+encodeURIComponent(sid));
-  b.innerHTML=`<div class="row" style="margin-bottom:11px">
-      <button class="btn ghost" id="b-back">Back</button>
-      <span class="stat"><b>${niceDate(started)||sid}</b> · ${r.items.length} shown</span>
-      <span class="spacer"></span><a href="/api/session/${sid}/zip">download all</a></div>
-    <div class="lib" id="evgrid"></div>`;
-  $("#b-back").onclick=()=>loadLib();
-  const g=$("#evgrid");
-  if(!r.items.length){g.innerHTML='<div class="empty">No photos in this run.</div>';return;}
+  const title=(tag?tag+" · ":"")+(niceDate(started)||sid);
+  // One flat list of every shot in the run, so the lightbox can page through
+  // the whole run in order regardless of which photo you opened.
+  const flat=[];
   r.items.forEach(e=>{
-    const d=document.createElement("div");d.className="tile";
-    const f=e.shots[0];
-    d.innerHTML=`<a class="th" href="${f?f.url:"#"}" target="_blank">
-        ${f?`<img src="${f.url}" loading="lazy" alt="">`:""}</a>
-      <div class="m"><div class="n">Object ${e.meta.seq||""}</div>
-        <div>${e.shots.length} photo${e.shots.length!==1?"s":""}</div></div>`;
-    g.appendChild(d);
+    const seq=(e.meta&&e.meta.seq)?String(e.meta.seq).padStart(3,"0"):(e.name||"");
+    e.shots.forEach(s=>flat.push({url:s.url,caption:`Object ${seq} · ${shotLabel(s.name)}`}));
   });
+  b.innerHTML=`<div class="row" style="margin-bottom:12px">
+      <button class="btn ghost" id="b-back">← All runs</button>
+      <span class="stat"><b>${title}</b> · ${r.items.length} object${r.items.length!==1?"s":""}</span>
+      <span class="spacer"></span>
+      <a class="btn ghost" href="/api/session/${sid}/zip">Download all</a></div>
+    <div class="gallery" id="gal"></div>`;
+  $("#b-back").onclick=()=>loadLib();
+  const g=$("#gal");
+  if(!r.items.length){g.innerHTML='<div class="empty">No photos in this run yet.</div>';return;}
+  let fi=0;
+  r.items.forEach(e=>{
+    const seq=(e.meta&&e.meta.seq)?String(e.meta.seq).padStart(3,"0"):(e.name||"");
+    const tm=(e.meta&&e.meta.time?(e.meta.time.split("T")[1]||""):"").slice(0,8);
+    const shots=e.shots.map(s=>{
+      const gi=fi++;
+      return `<figure><img src="${s.url}" loading="lazy" alt="" data-i="${gi}">
+        <figcaption>${shotLabel(s.name)}</figcaption></figure>`;
+    }).join("");
+    const o=document.createElement("div");o.className="obj";
+    o.innerHTML=`<div class="obj-head">Object ${seq}${tm?` <span class="cnt">${tm}</span>`:""}
+        ${e.shots.length?"":'<span class="cnt">no photos</span>'}</div>
+      <div class="obj-shots">${shots}</div>`;
+    g.appendChild(o);
+  });
+  g.querySelectorAll("img[data-i]").forEach(img=>img.onclick=()=>openLightbox(flat,parseInt(img.dataset.i)));
 }
 
 /* ---------- capture controls ---------- */

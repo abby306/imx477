@@ -326,8 +326,10 @@ class CaptureController:
                 if off > 0:
                     time.sleep(off / 1000.0)
                 t_shot = time.monotonic()
+                # Self-describing names: object number + camera (+ shot no. for
+                # a burst), so a file still makes sense once it's out of its folder.
                 if cap["mode"] == "full_res" and not cam.recording:
-                    p = os.path.join(edir, f"cam{cam.index}.jpg")
+                    p = os.path.join(edir, f"obj{seq:04d}_cam{cam.index}.jpg")
                     cam.capture_still(p, full_res=True)
                     results[cam.index] = {"files": [os.path.basename(p)],
                                           "latency_ms": round((t_shot - t0) * 1000, 1)}
@@ -335,7 +337,8 @@ class CaptureController:
                 frames = cam.grab(cap["burst_count"], cap["burst_interval_ms"])
                 names = []
                 for i, f in enumerate(frames):
-                    name = f"cam{cam.index}.jpg" if len(frames) == 1 else f"cam{cam.index}_{i}.jpg"
+                    name = (f"obj{seq:04d}_cam{cam.index}.jpg" if len(frames) == 1
+                            else f"obj{seq:04d}_cam{cam.index}_{i + 1}.jpg")
                     cam.save_bgr(f, os.path.join(edir, name))
                     names.append(name)
                 results[cam.index] = {"files": names,
